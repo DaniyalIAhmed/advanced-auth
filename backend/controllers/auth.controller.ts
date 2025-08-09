@@ -4,8 +4,14 @@ import bcrypt from "bcryptjs";
 import {
   generateTokenAndSetCookie,
   generateVerificationToken,
+  sendPasswordResetEmail,
 } from "../lib/utils";
-import { sendVerficationEmail, sendWelcomeEmail } from "../lib/emails";
+import crypto from "crypto";
+import {
+  sendResetPasswordSuccessEmail,
+  sendVerficationEmail,
+  sendWelcomeEmail,
+} from "../lib/emails";
 
 export const register = async (req: Request, res: Response) => {
   const { username, email, password } = req.body;
@@ -96,4 +102,63 @@ export const verifyMail = async (req: Request, res: Response) => {
     message: "Email verified successfully",
     user: { ...user.toObject(), password: undefined },
   });
+};
+export const forgotPassword = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+  const resetToken = crypto.randomBytes(16).toString("hex");
+  const resetTokenExpiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000);
+  user.resetPasswordToken = resetToken;
+  user.resetPasswordExpiresAt = resetTokenExpiresAt;
+  await user.save();
+  await sendPasswordResetEmail(
+    user.email,
+    `${process.env.CLIENT_URL}/reset-password/${resetToken}`
+  );
+  res.status(200).json({
+    message: "Password reset email sent successfully",
+  });
+};
+export const resetPassword = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({ message: "New password must be at least 6 characters long" });
+    }
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpiresAt: { $gt: new Date() },
+    });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "Invalid or expired reset token" });
+    }
+    const isMatched = await bcrypt.compare(newPassword, user.password);
+    if (isMatched) {
+      return res
+        .status(400)
+        .json({
+          message: "New password cannot be the same as the old password",
+        });
+    }
+    await sendResetPasswordSuccessEmail(user.email, user.userName);
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpiresAt = undefined;
+    await user.save();
+    res.status(200).json({ message: "Password reset successfully" });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 };
