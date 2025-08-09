@@ -6,7 +6,7 @@ import authRoutes from './routes/auth.route';
 
 dotenv.config();
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 58475;
 app.use(cookieParser());
 app.use(express.json());
 
