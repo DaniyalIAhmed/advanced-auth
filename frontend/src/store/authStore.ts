@@ -9,7 +9,8 @@ interface authArg {
   error: null;
   isCheckingAuth: boolean;
   signup: (name: string, email: string, password: string) => Promise<void>;
-  login: ( email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
   verifyEmail: (code: string) => Promise<void>;
   checkAuth: () => Promise<void>;
 }
@@ -28,7 +29,10 @@ export const useAuthStore = create<authArg>((set, get) => ({
         email,
         password,
       });
-      set({ user: res.data.user, isAuthenticated: true });
+      set({
+        user: { ...res.data.user, name: res.data.user.userName },
+        isAuthenticated: true,
+      });
     } catch (error) {
       //   console.error(error.response.data.message);
       console.error(error);
@@ -52,29 +56,44 @@ export const useAuthStore = create<authArg>((set, get) => ({
     }
   },
   login: async (email, password) => {
-    set({isLoading: true, error: null});
+    set({ isLoading: true, error: null });
     try {
-      const res = await axiosInstance.post("/login", {email, password});
+      const res = await axiosInstance.post("/login", { email, password });
       set({
         isAuthenticated: true,
-        user: res.data.user,
-      })
+        user: { ...res.data.user, name: res.data.user.userName },
+      });
     } catch (error) {
       console.log(error);
       throw error;
-    } finally{
-      set({isLoading: false});
+    } finally {
+      set({ isLoading: false });
     }
   },
   checkAuth: async () => {
-    set({isCheckingAuth: true, error: null})
+    set({ isCheckingAuth: true, error: null });
     try {
       const res = await axiosInstance.get("/check");
-      set({user: res.data.user, isAuthenticated: true});
+      set({
+        user: { ...res.data.user, name: res.data.user.userName },
+        isAuthenticated: true,
+      });
     } catch (error) {
       console.log(error);
-    } finally{
-      set({isCheckingAuth: false});
+    } finally {
+      set({ isCheckingAuth: false });
+    }
+  },
+  logout: async () => {
+    set({ isLoading: true });
+
+    try {
+      await axiosInstance.get("/logout");
+      set({ user: null, isAuthenticated: false });
+    } catch (error) {
+      console.log(error);
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));
