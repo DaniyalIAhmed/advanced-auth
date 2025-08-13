@@ -52,7 +52,7 @@ export const login = async (req: Request, res: Response) => {
         .status(400)
         .json({ message: "Email and password are required" });
     }
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+password");
     if (!user) {
       return res.status(404).json({ message: "Invalid credentials" });
     }
@@ -145,11 +145,9 @@ export const resetPassword = async (req: Request, res: Response) => {
     }
     const isMatched = await bcrypt.compare(newPassword, user.password);
     if (isMatched) {
-      return res
-        .status(400)
-        .json({
-          message: "New password cannot be the same as the old password",
-        });
+      return res.status(400).json({
+        message: "New password cannot be the same as the old password",
+      });
     }
     await sendResetPasswordSuccessEmail(user.email, user.userName);
     user.password = newPassword;
